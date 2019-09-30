@@ -1,0 +1,809 @@
+------------------------------------------------------------------------------------------------------------------------------------------
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "type": "string",
+            "defaultValue": "MyAdminUser",
+            "metadata": {
+                "description": "Default Admin username"
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Default Admin password"
+            }
+        },
+        "VnetName": {
+            "type": "string",
+            "defaultValue": "AzureVnet",
+            "metadata": {
+                "description": "Used in name prefixes."
+            }
+        },
+        "VnetAddress": {
+            "type": "string",
+            "defaultValue": "10.0.0.0/16"
+        },
+        "Subnet1Address": {
+            "type": "string",
+            "defaultValue": "10.0.0.0/24"
+        },
+        "Subnet2Address": {
+            "type": "string",
+            "defaultValue": "10.0.1.0/24"
+        },
+        "gatewaySubnetPrefix": {
+            "type": "string",
+            "defaultValue": "10.0.200.0/29",
+            "metadata": {
+                "description": "CIDR block for gateway subnet, subset of azureVNetAddressPrefix address space"
+            }
+        },
+        "localGatewayIpAddress": {
+            "type": "string",
+            "defaultValue": "1.1.1.1",
+            "metadata": {
+                "description": "Public IP of your on-prem VPN"
+            }
+        },
+        "localAddressPrefix": {
+            "type": "array",
+            "defaultValue": [
+                "192.168.0.0/16",
+                "172.16.0.0/12"
+            ],
+            "metadata": {
+                "description": "CIDR block representing the address space of the OnPremise VPN network's Subnet"
+            }
+        },
+        "sharedKey": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Shared key (PSK) for IPSec tunnel"
+            }
+        },
+        "vpnType": {
+            "type": "string",
+            "metadata": {
+                "description": "Route based or policy based"
+            },
+            "defaultValue": "RouteBased",
+            "allowedValues": [
+                "RouteBased",
+                "PolicyBased"
+            ]
+        },
+        "gatewaySku": {
+            "type": "string",
+            "defaultValue": "Basic",
+            "allowedValues": [
+                "Basic",
+                "Standard",
+                "HighPerformance"
+            ],
+            "metadata": {
+                "description": "The Sku of the Gateway. This must be one of Basic, Standard or HighPerformance."
+            }
+        },
+        "ManagedVmName": {
+            "type": "string",
+            "defaultValue": "AzureSQL01",
+            "metadata": {
+                "description": "Used in name prefixes."
+            }
+        },
+        "ManagedVmSize": {
+            "type": "string",
+            "defaultValue": "Standard_D2s_v3"
+        },
+        "ManagedDiskVmPublisher": {
+            "type": "string",
+            "defaultValue": "MicrosoftSQLServer"
+        },
+        "ManagedDiskVmOffer": {
+            "type": "string",
+            "defaultValue": "SQL2017-WS2016"
+        },
+        "ManagedVmSku": {
+            "type": "string",
+            "defaultValue": "Standard"
+        },
+        "ManagedVmNic1IpAddress": {
+            "type": "string",
+            "defaultValue": "10.0.0.4"
+        },
+        "ManagedVmNic2IpAddress": {
+            "type": "string",
+            "defaultValue": "10.0.1.4"
+        },
+        "ManagedVmOsDiskSizeGB": {
+            "type": "string",
+            "defaultValue": "127"
+        },
+        "ManagedVmOsDiskType": {
+            "type": "string",
+            "defaultValue": "Premium_LRS"
+        },
+        "ManagedVmDataDisk1SizeGB": {
+            "type": "string",
+            "defaultValue": "255"
+        },
+        "ManagedVmDataDisk1Type": {
+            "type": "string",
+            "defaultValue": "Premium_LRS"
+        },
+        "ManagedVmDataDisk2SizeGB": {
+            "type": "string",
+            "defaultValue": "511"
+        },
+        "ManagedVmDataDisk2Type": {
+            "type": "string",
+            "defaultValue": "Standard_LRS"
+        },
+        "UnmanagedVmName": {
+            "type": "string",
+            "defaultValue": "AzureDC01",
+            "metadata": {
+                "description": "Used in name prefixes."
+            }
+        },
+        "UnmanagedVmSize": {
+            "type": "string",
+            "defaultValue": "Standard_D2s_v3"
+        },
+        "UnmanagedVmPublisher": {
+            "type": "string",
+            "defaultValue": "MicrosoftWindowsServer"
+        },
+        "UnmanagedVmOffer": {
+            "type": "string",
+            "defaultValue": "WindowsServer"
+        },
+        "UnmanagedVmSku": {
+            "type": "string",
+            "defaultValue": "2016-Datacenter"
+        },
+        "UnmanagedVmNic1IpAddress": {
+            "type": "string",
+            "defaultValue": "10.0.0.5"
+        },
+        "UnmanagedVmNic2IpAddress": {
+            "type": "string",
+            "defaultValue": "10.0.1.5"
+        },
+        "UnmanagedDiskVmOsDiskSize": {
+            "type": "string",
+            "defaultValue": "127"
+        },
+        "UnmanagedDiskVmDataDiskSize": {
+            "type": "string",
+            "defaultValue": "255"
+        }
+    },
+    "variables": {
+        "virtualNetworkName": "[parameters('VnetName')]",
+        "virtualNetworkPrefix": "[parameters('VnetAddress')]",
+        "subnet1Name": "[concat(parameters('VnetName'), '_Subnet1')]",
+        "subnet1Prefix": "[parameters('Subnet1Address')]",
+        "subnet2Name": "[concat(parameters('VnetName'), '_Subnet2')]",
+        "subnet2Prefix": "[parameters('Subnet2Address')]",
+        "DemoVnetSubnet1NetworkSecurityGroupName": "[concat(parameters('VnetName'), '_Subnet1_NSG')]",
+        "DemoVnetSubnet1NetworkSecurityGroupSecurityRules": [
+            {
+                "name": "RDP_Location1",
+                "properties": {
+                    "priority": 1000,
+                    "sourceAddressPrefix": "1.2.3.4/20",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            },
+            {
+                "name": "RDP_Location2",
+                "properties": {
+                    "priority": 1001,
+                    "sourceAddressPrefix": "5.6.7.8/32",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            }
+        ],
+        "DemoVnetSubnet2NetworkSecurityGroupName": "[concat(parameters('VnetName'), '_Subnet2_NSG')]",
+        "DemoVnetSubnet2NetworkSecurityGroupSecurityRules": [
+            {
+                "name": "RDP_Location1",
+                "properties": {
+                    "priority": 1000,
+                    "sourceAddressPrefix": "1.2.3.4/20",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            },
+            {
+                "name": "RDP_Location2",
+                "properties": {
+                    "priority": 1001,
+                    "sourceAddressPrefix": "5.6.7.8/32",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            }
+        ],
+        "VMNetworkSecurityGroupSecurityRules": [
+            {
+                "name": "RDP_Location1",
+                "properties": {
+                    "priority": 1000,
+                    "sourceAddressPrefix": "1.2.3.4/20",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            },
+            {
+                "name": "RDP_Location2",
+                "properties": {
+                    "priority": 1001,
+                    "sourceAddressPrefix": "5.6.7.8/32",
+                    "protocol": "Tcp",
+                    "destinationPortRange": "3389",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*"
+                }
+            }
+        ],
+        "gatewaySubnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets/', variables('virtualNetworkName'),'GatewaySubnet')]",
+        "gatewayName": "[concat(variables('virtualNetworkName'), '_VpnGateway')]",
+        "gatewayPublicIPName": "[concat(variables('virtualNetworkName'), '_VpnGateway_PIP')]",
+        "localGatewayName": "[concat(variables('virtualNetworkName'), '_VpnGateway_LocalGateway')]",
+        "connectionName": "[concat(variables('virtualNetworkName'), '_VpnGateway_Connection')]",
+        "diagStorageAccountName": "[concat('00diags',uniqueString(resourceGroup().id))]",
+        "diagStorageAccountType": "Standard_LRS",
+        "premStorageAccountName": "[concat('00premlrs',uniqueString(resourceGroup().id))]",
+        "premStorageAccountType": "Premium_LRS",
+        "stdStorageAccountName": "[concat('00stdlrs',uniqueString(resourceGroup().id))]",
+        "stdStorageAccountType": "Standard_LRS",
+        "ManagedDiskVm01Name": "[parameters('ManagedVmName')]",
+        "ManagedDiskVm01Size": "[parameters('ManagedVmSize')]",
+        "ManagedDiskVm01Publisher": "[parameters('ManagedDiskVmPublisher')]",
+        "ManagedDiskVm01Offer": "[parameters('ManagedDiskVmOffer')]",
+        "ManagedDiskVm01Sku": "[parameters('ManagedVmSku')]",
+        "ManagedDiskVm01Nic1Name": "[concat(variables('ManagedDiskVm01Name'),'_NIC1')]",
+        "ManagedDiskVm01Nic1PublicIPAddressName": "[concat(variables('ManagedDiskVm01Name'),'_NIC1_PIP')]",
+        "ManagedDiskVm01Nic1NetworkSecurityGroup": "[concat(variables('ManagedDiskVm01Name'),'_NIC1_NSG')]",
+        "ManagedDiskVm01Nic1IpAddress": "[parameters('ManagedVmNic1IpAddress')]",
+        "ManagedDiskVm01Nic2Name": "[concat(variables('ManagedDiskVm01Name'),'_NIC2')]",
+        "ManagedDiskVm01Nic2IpAddress": "[parameters('ManagedVmNic2IpAddress')]",
+        "ManagedDiskVm01OsDisk": {
+            "name": "[concat(variables('ManagedDiskVm01Name'),'_Disk_Os')]",
+            "diskSizeGB": "[parameters('ManagedVmOsDiskSizeGB')]",
+            "managedDisk": {
+                "storageAccountType": "[parameters('ManagedVmOsDiskType')]"
+            },
+            "createOption": "FromImage",
+            "osType": "Windows",
+            "caching": "ReadWrite"
+        },
+        "ManagedDiskVm01DataDisks": [
+            {
+                "name": "[concat(variables('ManagedDiskVm01Name'),'_Disk_Data1')]",
+                "diskSizeGB": "[parameters('ManagedVmDataDisk1SizeGB')]",
+                "managedDisk": {
+                    "storageAccountType": "[parameters('ManagedVmDataDisk1Type')]"
+                },
+                "lun": 0,
+                "createOption": "Empty"
+            },
+            {
+                "name": "[concat(variables('ManagedDiskVm01Name'),'_Disk_Data2')]",
+                "diskSizeGB": "[parameters('ManagedVmDataDisk2SizeGB')]",
+                "managedDisk": {
+                    "storageAccountType": "[parameters('ManagedVmDataDisk2Type')]"
+                },
+                "lun": 1,
+                "createOption": "Empty"
+            }
+        ],
+        "UnmanagedDiskVm01Name": "[parameters('UnmanagedVmName')]",
+        "UnmanagedDiskVm01Size": "[parameters('UnmanagedVmSize')]",
+        "UnmanagedDiskVm01Publisher": "[parameters('UnmanagedVmPublisher')]",
+        "UnmanagedDiskVm01Offer": "[parameters('UnmanagedVmOffer')]",
+        "UnmanagedDiskVm01Sku": "[parameters('UnmanagedVmSku')]",
+        "UnmanagedDiskVm01Nic1Name": "[concat(variables('UnmanagedDiskVm01Name'),'_NIC1')]",
+        "UnmanagedDiskVm01Nic1PublicIPAddressName": "[concat(variables('UnmanagedDiskVm01Name'),'_NIC1_PIP')]",
+        "UnmanagedDiskVm01NetworkSecurityGroup": "[concat(variables('UnmanagedDiskVm01Name'),'_NIC1_NSG')]",
+        "UnmanagedDiskVm01Nic1IpAddress": "[parameters('UnmanagedVmNic1IpAddress')]",
+        "UnmanagedDiskVm01Nic2Name": "[concat(variables('UnmanagedDiskVm01Name'),'_NIC2')]",
+        "UnmanagedDiskVm01Nic2IpAddress": "[parameters('UnmanagedVmNic2IpAddress')]",
+        "UnmanagedDiskVm01OsDisk": {
+            "name": "[concat(variables('UnmanagedDiskVm01Name'),'_Disk_Os')]",
+            "diskSizeGB": "[parameters('UnmanagedDiskVmOsDiskSize')]",
+            "createOption": "FromImage",
+            "osType": "Windows",
+            "caching": "ReadWrite",
+            "vhd": {
+                "uri": "[concat('http://',variables('premStorageAccountName'),'.blob.core.windows.net/vhds/', variables('UnmanagedDiskVm01Name'), '_Disk_Os.vhd')]"
+            }
+        },
+        "UnmanagedDiskVm01DataDisks": [
+            {
+                "name": "[concat(variables('UnmanagedDiskVm01Name'),'_Disk_Data1')]",
+                "diskSizeGB": "[parameters('UnmanagedDiskVmDataDiskSize')]",
+                "createOption": "Empty",
+                "lun": 0,
+                "vhd": {
+                    "uri": "[concat('http://',variables('stdStorageAccountName'),'.blob.core.windows.net/vhds/', variables('UnmanagedDiskVm01Name'),'_Disk_Data1.vhd')]"
+                }
+            }
+        ],
+        "EndOfVariables": "..If you have copied and pasted new variable sets then you will need to update the resources section.."
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('diagStorageAccountName')]",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[variables('diagStorageAccountType')]"
+            },
+            "kind": "Storage",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('premStorageAccountName')]",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[variables('premStorageAccountType')]"
+            },
+            "kind": "Storage",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('stdStorageAccountName')]",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[variables('stdStorageAccountType')]"
+            },
+            "kind": "Storage",
+            "properties": {}
+        },
+        {
+            "name": "[variables('DemoVnetSubnet1NetworkSecurityGroupName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2016-09-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Network Security Group (NSG) for your network",
+            "properties": {
+                "securityRules": "[variables('DemoVnetSubnet1NetworkSecurityGroupSecurityRules')]"
+            }
+        },
+        {
+            "name": "[variables('DemoVnetSubnet2NetworkSecurityGroupName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2016-09-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Network Security Group (NSG) for your network",
+            "properties": {
+                "securityRules": "[variables('DemoVnetSubnet2NetworkSecurityGroupSecurityRules')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "This will build a Virtual Network.",
+            "dependsOn": [
+                "[variables('DemoVnetSubnet1NetworkSecurityGroupName')]",
+                "[variables('DemoVnetSubnet2NetworkSecurityGroupName')]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('virtualNetworkPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnet1Name')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnet1Prefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('DemoVnetSubnet1NetworkSecurityGroupName'))]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "[variables('subnet2Name')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnet2Prefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('DemoVnetSubnet2NetworkSecurityGroupName'))]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "GatewaySubnet",
+                        "properties": {
+                            "addressPrefix": "[parameters('gatewaySubnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('ManagedDiskVm01Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "comments": "This is the virtual machine that you're building.",
+            "dependsOn": [
+                "[variables('ManagedDiskVm01Nic1Name')]",
+                "[variables('ManagedDiskVm01Nic2Name')]",
+                "[variables('diagStorageAccountName')]"
+            ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[variables('ManagedDiskVm01Name')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]",
+                    "windowsConfiguration": {
+                        "provisionVmAgent": "true"
+                    }
+                },
+                "hardwareProfile": {
+                    "vmSize": "[variables('ManagedDiskVm01Size')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('ManagedDiskVm01Publisher')]",
+                        "offer": "[variables('ManagedDiskVm01Offer')]",
+                        "sku": "[variables('ManagedDiskVm01Sku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": "[variables('ManagedDiskVm01OsDisk')]",
+                    "dataDisks": "[variables('ManagedDiskVm01DataDisks')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "properties": {
+                                "primary": true
+                            },
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('ManagedDiskVm01Nic1Name'))]"
+                        },
+                        {
+                            "properties": {
+                                "primary": false
+                            },
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('ManagedDiskVm01Nic2Name'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('diagStorageAccountName')), '2017-06-01').primaryEndpoints['blob']]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[variables('ManagedDiskVm01Nic1Name')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "This will be your Primary NIC",
+            "dependsOn": [
+                "[variables('ManagedDiskVm01Nic1PublicIPAddressName')]",
+                "[variables('ManagedDiskVm01Nic1NetworkSecurityGroup')]",
+                "[variables('virtualNetworkName')]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[variables('ManagedDiskVm01Nic1IpAddress')]",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnet1Name'))]"
+                            },
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIpAddresses', variables('ManagedDiskVm01Nic1PublicIPAddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('ManagedDiskVm01Nic1NetworkSecurityGroup'))]"
+                }
+            }
+        },
+        {
+            "name": "[variables('ManagedDiskVm01Nic2Name')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "This will be your Secondary NIC",
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[variables('ManagedDiskVm01Nic2IpAddress')]",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnet2Name'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('ManagedDiskVm01Nic1PublicIPAddressName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Public IP for your Primary NIC",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "name": "[variables('ManagedDiskVm01Nic1NetworkSecurityGroup')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2016-09-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Network Security Group (NSG) for your Primary NIC",
+            "properties": {
+                "securityRules": "[variables('VMNetworkSecurityGroupSecurityRules')]"
+            }
+        },
+        {
+            "name": "[variables('UnmanagedDiskVm01Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "comments": "This is the virtual machine that you're building.",
+            "dependsOn": [
+                "[variables('UnmanagedDiskVm01Nic1Name')]",
+                "[variables('UnmanagedDiskVm01Nic2Name')]",
+                "[variables('diagStorageAccountName')]",
+                "[variables('premStorageAccountName')]",
+                "[variables('stdStorageAccountName')]"
+            ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[variables('UnmanagedDiskVm01Name')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]",
+                    "windowsConfiguration": {
+                        "provisionVmAgent": "true"
+                    }
+                },
+                "hardwareProfile": {
+                    "vmSize": "[variables('UnmanagedDiskVm01Size')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('UnmanagedDiskVm01Publisher')]",
+                        "offer": "[variables('UnmanagedDiskVm01Offer')]",
+                        "sku": "[variables('UnmanagedDiskVm01Sku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": "[variables('UnmanagedDiskVm01OsDisk')]",
+                    "dataDisks": "[variables('UnmanagedDiskVm01DataDisks')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "properties": {
+                                "primary": true
+                            },
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('UnmanagedDiskVm01Nic1Name'))]"
+                        },
+                        {
+                            "properties": {
+                                "primary": false
+                            },
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('UnmanagedDiskVm01Nic2Name'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('diagStorageAccountName')), '2017-06-01').primaryEndpoints['blob']]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[variables('UnmanagedDiskVm01Nic1Name')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "This will be your Primary NIC",
+            "dependsOn": [
+                "[variables('UnmanagedDiskVm01Nic1PublicIPAddressName')]",
+                "[variables('UnmanagedDiskVm01NetworkSecurityGroup')]",
+                "[variables('virtualNetworkName')]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[variables('UnmanagedDiskVm01Nic1IpAddress')]",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnet1Name'))]"
+                            },
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIpAddresses', variables('UnmanagedDiskVm01Nic1PublicIPAddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('UnmanagedDiskVm01NetworkSecurityGroup'))]"
+                }
+            }
+        },
+        {
+            "name": "[variables('UnmanagedDiskVm01Nic2Name')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "This will be your Secondary NIC",
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[variables('UnmanagedDiskVm01Nic2IpAddress')]",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnet2Name'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('UnmanagedDiskVm01Nic1PublicIPAddressName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Public IP for your Primary NIC",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "name": "[variables('UnmanagedDiskVm01NetworkSecurityGroup')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2016-09-01",
+            "location": "[resourceGroup().location]",
+            "comments": "Network Security Group (NSG) for your Primary NIC",
+            "properties": {
+                "securityRules": "[variables('VMNetworkSecurityGroupSecurityRules')]"
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/localNetworkGateways",
+            "name": "[variables('localGatewayName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "localNetworkAddressSpace": {
+                    "addressPrefixes": "[parameters('localAddressPrefix')]"
+                },
+                "gatewayIpAddress": "[parameters('localGatewayIpAddress')]"
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "name": "[variables('connectionName')]",
+            "type": "Microsoft.Network/connections",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworkGateways/', variables('gatewayName'))]",
+                "[concat('Microsoft.Network/localNetworkGateways/', variables('localGatewayName'))]"
+            ],
+            "properties": {
+                "virtualNetworkGateway1": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworkGateways', variables('gatewayName'))]"
+                },
+                "localNetworkGateway2": {
+                    "id": "[resourceId('Microsoft.Network/localNetworkGateways', variables('localGatewayName'))]"
+                },
+                "connectionType": "IPsec",
+                "routingWeight": 10,
+                "sharedKey": "[parameters('sharedKey')]"
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('gatewayPublicIPName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/virtualNetworkGateways",
+            "name": "[variables('gatewayName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('gatewayPublicIPName'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('gatewaySubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('gatewayPublicIPName'))]"
+                            }
+                        },
+                        "name": "vnetGatewayConfig"
+                    }
+                ],
+                "sku": {
+                    "name": "[parameters('gatewaySku')]",
+                    "tier": "[parameters('gatewaySku')]"
+                },
+                "gatewayType": "Vpn",
+                "vpnType": "[parameters('vpnType')]",
+                "enableBgp": "false"
+            }
+        }
+    ],
+    "outputs": {}
+}
+------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "No DNS Zone Creation Allowed",
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "source": "action",
+            "like": "Microsoft.Network/dnszones/*"
+          }
+        ]
+      },
+      "then": {
+        "effect": "deny"
+      }
+    }
+  },
+  "id": "/subscriptions/<subscriptions-ID-Need>/providers/Microsoft.Authorization/policyDefinitions/NoDNSZonePolicyDefinition",
+  "type": "Microsoft.Authorization/policyDefinitions",
+  "name": "NoDNSZonePolicyDefinition"
+}

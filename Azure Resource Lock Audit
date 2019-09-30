@@ -1,0 +1,46 @@
+{
+  "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.Resources/subscriptions/resourceGroups"
+      },
+      "then": {
+        "effect": "AuditIfNotExists",
+        "details": {
+          "type": "Microsoft.Authorization/locks",
+          "existenceCondition": {
+            "field": "Microsoft.Authorization/locks/level",
+            "equals": "CanNotDelete"
+          },
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/0000-0000-0000-0000-0000000"
+          ],
+          "deployment": {
+            "properties": {
+              "mode": "incremental",
+              "template": {
+                "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+                "contentVersion": "1.0.0.0",
+                "parameters": {
+                  "location": {
+                    "type": "string"
+                  }
+                },
+                "resources": [
+                  {
+                    "type": "Microsoft.Authorization/locks",
+                    "apiVersion": "2017-04-01",
+                    "name": "ResourceLock",
+                    "properties": {
+                      "level": "CanNotDelete",
+                      "notes": "Prevent accidental deletion of resource groups"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+}

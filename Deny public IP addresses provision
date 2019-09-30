@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "No public IP addresses allowed",
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "source": "action",
+            "like": "Microsoft.Network/publicIPAddresses/*"
+          }
+        ]
+      },
+      "then": {
+        "effect": "deny"
+      }
+    }
+  },
+  "id": "/subscriptions/<subscriptionsid-need>/providers/Microsoft.Authorization/policyDefinitions/NoPubIPPolicyDefinition",
+  "type": "Microsoft.Authorization/policyDefinitions",
+  "name": "NoPubIPPolicyDefinition"
+}

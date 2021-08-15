@@ -1,0 +1,48 @@
+{
+    "contentVersion": "1.0.0.0",
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "parameters": {
+        "vmName": {
+            "type": "string"
+        },
+        "apiVersionByEnv": {
+            "type": "string",
+            "defaultValue": "2015-06-01-preview"
+        },
+        "location": {
+            "type": "String"
+        },
+        "logAnalytics": {
+            "type": "String"
+        }
+    },
+    "variables": {
+        "vmExtensionName": "MMAExtension",
+        "vmExtensionPublisher": "Microsoft.EnterpriseCloud.Monitoring",
+        "vmExtensionType": "MicrosoftMonitoringAgent"
+    },
+    "resources": [
+        {
+            "type": "resourceType/providers/serverVulnerabilityAssessments",
+            "name": "[concat(parameters('vmName'), '/Microsoft.Security/default')]",
+            "apiVersion": "[parameters('apiVersionByEnv')]"
+        },
+        {
+            "type": "Microsoft.HybridCompute/machines/extensions",
+            "apiVersion": "2019-12-12",
+            "name": "[concat(parameters('vmName'), '/', variables('vmExtensionName'))]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "publisher": "[variables('vmExtensionPublisher')]",
+                "type": "[variables('vmExtensionType')]",
+                "settings": {
+                    "workspaceId": "[reference(parameters('logAnalytics'), '2015-03-20').customerId]",
+                    "stopOnMultipleConnections": "false"
+                },
+                "protectedSettings": {
+                    "workspaceKey": "[listKeys(parameters('logAnalytics'), '2015-03-20').primarySharedKey]"
+                }
+            }
+        }
+    ]
+}

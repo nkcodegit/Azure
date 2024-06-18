@@ -156,7 +156,7 @@ Resources
     PEVnet
 
 #View Service Health Alerts
-	servicehealthresources
-	| where type =~ 'Microsoft.ResourceHealth/events'
-	| extend eventType = tostring(properties.EventType), status = properties.Status, description = properties.Title, trackingId = properties.TrackingId, summary = properties.Summary, priority = properties.Priority, impactStartTime = properties.ImpactStartTime, impactMitigationTime = todatetime(tolong(properties.ImpactMitigationTime))
+servicehealthresources
+| where type =~ 'Microsoft.ResourceHealth/events'
+| extend eventType = tostring(properties.EventType), status = properties.Status, description = properties.Title, trackingId = properties.TrackingId, summary = properties.Summary, priority = properties.Priority, impactStartTime = properties.ImpactStartTime, impactMitigationTime = todatetime(tolong(properties.ImpactMitigationTime))
 | where properties.Status == 'Active' and impactStartTime > ago(40d)
